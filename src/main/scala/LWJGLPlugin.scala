@@ -1,14 +1,20 @@
 import sbt._
-
 import java.util.regex.Pattern
-import java.io.{ FileNotFoundException, FileOutputStream }
+import java.io.{FileNotFoundException, FileOutputStream}
 
 import Keys._
+import sbt.plugins.JvmPlugin
+
 import scala.util.Properties
 import scala.language.postfixOps
 
-object LWJGLPlugin extends Plugin {
-  import lwjgl._
+object LWJGLPlugin extends AutoPlugin {
+
+
+  override def requires = JvmPlugin
+  override def trigger = AllRequirements
+
+  // TODO: autoImport object?
 
   object lwjgl {
     /** LWJGL Settings */
@@ -46,6 +52,9 @@ object LWJGLPlugin extends Plugin {
       "Copy LWJGL resources to output directory")
   }
 
+  import lwjgl._
+
+
   // Define Tasks
   private def lwjglCopyTask: Def.Initialize[Task[Seq[File]]] =
     (streams, copyDir, org, nativesName, nativesJarName, os, ivyPaths) map { 
@@ -61,6 +70,7 @@ object LWJGLPlugin extends Plugin {
 
       val target = dir / tos
       s.log.debug("Target directory: %s" format target)
+
 
       if (target.exists) {
         s.log.info("Skipping because of existence: %s" format(target))
@@ -137,19 +147,19 @@ object LWJGLPlugin extends Plugin {
 
   private def major(v: String): Int = v.split("\\.")(0) toInt
 
-  lazy val lwjglSettings: Seq[Setting[_]] = baseSettings ++ runSettings
+  lazy val lwjglSettings: Seq[sbt.Def.Setting[_]] = baseSettings ++ runSettings
 
-  lazy val baseSettings: Seq[Setting[_]] = Seq (
+  lazy val baseSettings: Seq[sbt.Def.Setting[_]] = Seq (
     lwjgl.includePlatform := true,
 
     // The group ID changed at version 3
-    lwjgl.org <<= (lwjgl.version) {
+    lwjgl.org <<= lwjgl.version {
       v => if (major(v) <= 2) "org.lwjgl.lwjgl" else "org.lwjgl"
     },
 
     lwjgl.utilsName := "lwjgl_util",
 
-    nativesDir <<= (target) (_ / "lwjgl-natives"),
+    nativesDir <<= target (_ / "lwjgl-natives"),
 
     manifestNatives <<= lwjglNativesTask,
     manifestNatives <<= manifestNatives dependsOn update,
@@ -166,7 +176,7 @@ object LWJGLPlugin extends Plugin {
             Nil
 
           val nativeDeps = if (isNew)
-            Seq(org % "lwjgl-platform" % v classifier "natives-" + (os._1))
+            Seq(org % "lwjgl-platform" % v classifier "natives-" + os._1)
           else
             Nil
 
@@ -174,8 +184,8 @@ object LWJGLPlugin extends Plugin {
       }
   )
 
-  lazy val runSettings: Seq[Setting[_]] = Seq (
-    lwjgl.version := "2.9.0",
+  lazy val runSettings: Seq[sbt.Def.Setting[_]] = Seq (
+    lwjgl.version := "2.9.3",
 
     lwjgl.nativesName := "lwjgl-platform",
 

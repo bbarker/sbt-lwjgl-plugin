@@ -3,3 +3,7 @@
 lib*
 target*
 project/boot
+
+.idea
+*.iws
+*.iml

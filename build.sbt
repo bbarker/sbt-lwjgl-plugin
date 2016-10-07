@@ -6,7 +6,7 @@ name := "sbt-lwjgl-plugin"
 
 organization := "com.github.philcali"
 
-version := "3.1.5-SNAPSHOT"
+version := "3.1.6"
 
 libraryDependencies += "net.databinder.dispatch" %% "dispatch-core" % "0.11.0"
 
@@ -34,14 +34,19 @@ pomExtra := (
     </license>
   </licenses>
   <scm>
-    <url>git@github.com:philcali/sbt-lwjgl-plugin.git</url>
-    <connection>scm:git:git@github.com:philcali/sbt-lwjgl-plugin.git</connection>
+    <url>git@github.com:bbarker/sbt-lwjgl-plugin.git</url>
+    <connection>scm:git:git@github.com:bbarker/sbt-lwjgl-plugin.git</connection>
   </scm>
   <developers>
     <developer>
       <id>philcali</id>
       <name>Philip Cali</name>
       <url>http://philcalicode.blogspot.com/</url>
+    </developer>
+    <developer>
+      <id>bbarker</id>
+      <name>Brandon Barker</name>
+      <url>bbarker.github.io</url>
     </developer>
   </developers>
 )
