@@ -66,12 +66,13 @@ object JMonkeyProject {
       "Purges the jMonkey installs in the local cache.")
   }
 
-  private def jmonkeyUpdateTask = 
-    (streams, baseVersion, targetVersion, downloadDir, 
-     baseRepo, version, userAgent, ivyPaths) map { 
-      (s, bv, tv, dd, baseRepo, jmonkeyName, userAgent, ivyPaths) =>
-
-      val cacheDir = jmonkeyCacheDir("desktop", bv, tv, ivyPaths.ivyHome)
+  private def jmonkeyUpdateTask = Def.task {
+    val s = streams.value
+    val bv: String = baseVersion.value
+    val tv = targetVersion.value
+    val dd = downloadDir.value
+    val jmonkeyName = version.value
+    val cacheDir = jmonkeyCacheDir("desktop", bv, tv, ivyPaths.value.ivyHome)
 
       // First check that we don't have cached version
       (cacheDir.exists || (dd / jmonkeyName exists)) match {
@@ -86,13 +87,13 @@ object JMonkeyProject {
           val zip = "%s.zip" format(jmonkeyName) 
           val zipFile = new java.io.File(zip)
 
-          val jmUrl = dUrl(baseRepo) / zip
+          val jmUrl = dUrl(baseRepo.value) / zip
 
           // Start the download
           s.log.info("Downloading %s ..." format(jmonkeyName))
           s.log.warn("This may take a few minutes...")
 
-          Http(jmUrl <:< Map("User-Agent" -> userAgent) > {
+          Http(jmUrl <:< Map("User-Agent" -> userAgent.value) > {
             res =>
               val length = res.getHeader("Content-Length").toDouble
               val bytes = new Array[Byte](1024)
@@ -215,10 +216,10 @@ object JMonkeyProject {
 
     base / targeted exists match {
       case true => (base / targeted * "*").get.foreach { 
-        f => s.log.info("Found: %s" format(f))
+        f => s.log.info("Found: %s" format f)
       }
       case false => 
-        s.log.info("There are no builds in: %s" format(base))
+        s.log.info("There are no builds in: %s" format base)
     }
   }
 
@@ -230,7 +231,7 @@ object JMonkeyProject {
 
   private def jmonkeyCacheDir(platform: String, bv: String, tv: String, ivyHome: Option[File]) = { 
     val base = jmonkeyParentBaseDir(ivyHome)
-    (base / "jmonkeyengine-%s".format(platform) / "%s".format(jmd(bv, tv))) 
+    base / "jmonkeyengine-%s".format(platform) / "%s".format(jmd(bv, tv))
   }
 
   private def jmonkeyParentBaseDir(ivyHome: Option[File]) =
@@ -243,12 +244,14 @@ object JMonkeyProject {
       baseRepo := "http://jmonkeyengine.com/nightly",
       baseVersion := "jME3",
       targetDate := new java.util.Date(),
-      targetVersion <<= (targetDate) {
+      targetVersion := {
         val sdf = new java.text.SimpleDateFormat("yyyy-MM-dd")
-        sdf.format(_)
+        sdf.format(targetDate)
       },
 
-      userAgent <<= (version, LWJGLPlugin.lwjgl.os) { (v, os) => 
+      userAgent := {
+        val v = version.value
+        val os = LWJGLPlugin.lwjgl.os.value
         val operating = os match {
           case ("macosx", _) => "Macintosh"
           case ("windows", _) => "Windows"
@@ -259,32 +262,33 @@ object JMonkeyProject {
         "Mozilla/5.0 (compatible; jMonkeyDownloader %s; %s)" format(v, operating)
       },
 
-      jmonkey.version <<= (baseVersion, targetVersion) { "%s_%s".format(_, _) },
+      jmonkey.version := { "%s_%s".format(baseVersion, targetVersion) },
 
       downloadDir := file(".") / "jmonkeyDownloads",
       targetPlatform := "desktop",
 
-      download <<= jmonkeyUpdateTask,
-      listInstalled <<= jmonkeyLocalTask,
-      install <<= jmonkeyCacheTask,
-      install <<= install dependsOn download, 
+      download := jmonkeyUpdateTask,
+      listInstalled := jmonkeyLocalTask,
+      install := jmonkeyCacheTask,
+      install := install dependsOn download,
 
-      cleanLib <<= (downloadDir) map { IO.delete(_) },
+      cleanLib := downloadDir map { IO.delete },
 
-      cleanCache <<= (streams, ivyPaths) map { (s, ivys) => 
-        s.log.info("Clearing out %s" format(jmonkeyParentBaseDir(ivys.ivyHome)))
+      cleanCache := (streams, ivyPaths) map { (s, ivys) =>
+        s.log.info("Clearing out %s" format jmonkeyParentBaseDir(ivys.ivyHome))
         IO.delete(jmonkeyParentBaseDir(ivys.ivyHome))
       },
 
-      update <<= update dependsOn install,
+      update := (update dependsOn install).value,
 
-      cleanFiles <+= downloadDir,
+      cleanFiles += downloadDir.value,
 
       // Create these dependecies for you 
-      libraryDependencies <++= (targetPlatform, baseVersion, targetVersion) { 
-        (platform, bv, tv) => Seq (
-          "org.jmonkeyengine" % "jmonkeyengine-%s".format(platform) % jmd(bv, tv) 
-        )
+      libraryDependencies += {
+        val platform =targetPlatform.value
+        val bv = baseVersion.value
+        val tv = targetVersion.value
+        "org.jmonkeyengine" % "jmonkeyengine-%s".format(platform) % jmd(bv, tv)
       }
   )
 

@@ -11,9 +11,8 @@ object Nicol {
   lazy val baseSettings: Seq[Setting[_]] = Seq (
     nicol.version := "0.1.0.1",
 
-    libraryDependencies <+= (nicol.version) {
-      "com.github.scan" %% "nicol" % _
-    }
+    libraryDependencies += "com.github.scan" %% "nicol" % nicol.version.value
+
   )
 
   lazy val nicolSettings: Seq[Setting[_]] =

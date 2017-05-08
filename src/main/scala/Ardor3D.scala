@@ -5,7 +5,7 @@ import Keys._
 object Ardor3D {
 
   object ardor {
-    val version = SettingKey[String]("ardor-version")
+    val version: SettingKey[String] = SettingKey("ardor-version")
   }
 
   lazy val baseSettings: Seq[Setting[_]] = Seq (
@@ -20,9 +20,8 @@ object Ardor3D {
       "http://google-maven-repository.googlecode.com/svn/repository/"
     ),
 
-    libraryDependencies <+= (ardor.version) { 
-      "com.ardor3d" % "ardor3d" % _
-    }
+    libraryDependencies += "com.ardor3d" % "ardor3d" % ardor.version.value
+
   )
 
   lazy val ardorSettings: Seq[Setting[_]] = 

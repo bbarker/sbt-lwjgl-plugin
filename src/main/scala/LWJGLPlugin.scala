@@ -1,6 +1,4 @@
 import sbt._
-import java.util.regex.Pattern
-import java.io.{FileNotFoundException, FileOutputStream}
 
 import Keys._
 import sbt.plugins.JvmPlugin
@@ -56,69 +54,74 @@ object LWJGLPlugin extends AutoPlugin {
 
 
   // Define Tasks
-  private def lwjglCopyTask: Def.Initialize[Task[Seq[File]]] =
-    (streams, copyDir, org, nativesName, nativesJarName, os, ivyPaths) map { 
-      (s, dir, org, nativesName, jarName, dos, ivys) =>
-      val (tos, ext) = dos
-      val endness = Properties
-        .propOrNone("os.arch")
-        .filter(_.contains("64"))
-        .map(_ => "64")
-        .getOrElse("")
+  private def lwjglCopyTask: Def.Initialize[Task[Seq[File]]] = Def.task  {
+    val s = streams.value
+    val dir = copyDir.value
+    val jarName = nativesJarName.value
+    val dos = os.value
+    val ivys = ivyPaths.value
+    val (tos, ext) = dos
+    val endness = Properties
+      .propOrNone("os.arch")
+      .filter(_.contains("64"))
+      .map(_ => "64")
+      .getOrElse("")
 
-      s.log.info("Copying files for %s%s" format(tos, endness))
+    s.log.info("Copying files for %s%s" format(tos, endness))
 
-      val target = dir / tos
-      s.log.debug("Target directory: %s" format target)
+    val target = dir / tos
+    s.log.debug("Target directory: %s" format target)
 
 
-      if (target.exists) {
-        s.log.info("Skipping because of existence: %s" format(target))
-        Nil
-      } else {
-        val nativeLocation = pullNativeJar(org, nativesName, jarName, ivys.ivyHome)
+    if (target.exists) {
+      s.log.info("Skipping because of existence: %s" format(target))
+      Nil
+    } else {
+      val nativeLocation = pullNativeJar(org.value, nativesName.value, jarName, ivys.ivyHome)
 
-        if (nativeLocation.exists) {
-          s.log.debug("Natives found at %s" format nativeLocation)
-          val filter = new SimpleFilter(_.endsWith(ext))
-          s.log.debug("Unzipping files ending with %s" format ext)
+      if (nativeLocation.exists) {
+        s.log.debug("Natives found at %s" format nativeLocation)
+        val filter = new SimpleFilter(_.endsWith(ext))
+        s.log.debug("Unzipping files ending with %s" format ext)
 
-          IO.unzip(nativeLocation, target.asFile, filter)
+        IO.unzip(nativeLocation, target.asFile, filter)
 
-          // House keeping - to be used in old method
-          (target / tos * "*").get foreach { f =>
-            IO.copyFile(f, target / f.name)
-          }
-
-          // Return the managed LWJGL resources
-          target * "*" get
-        } else {
-          s.log.warn("""|You do not have the LWJGL natives installed %s.
-                        |Consider requiring LWJGL through LWJGLPlugin.lwjglSettings and running
-                        |again.""".stripMargin.format(nativeLocation))
-          Nil
+        // House keeping - to be used in old method
+        (target / tos * "*").get foreach { f =>
+          IO.copyFile(f, target / f.name)
         }
+
+        // Return the managed LWJGL resources
+        target * "*" get
+      } else {
+        s.log.warn("""|You do not have the LWJGL natives installed %s.
+                      |Consider requiring LWJGL through LWJGLPlugin.lwjglSettings and running
+                      |again.""".stripMargin.format(nativeLocation))
+        Nil
       }
     }
+  }
 
-  private def lwjglNativesTask =
-    (streams, nativesDir, org, nativesName, nativesJarName, ivyPaths) map {
-      (s, outDir, org, nativesName, jarName, ivys) =>
-      val unzipTo = file(".") / "natives-cache"
-      val lwjglN = pullNativeJar(org, nativesName, jarName, ivys.ivyHome)
+  private def lwjglNativesTask = Def.task {
+    val s = streams.value
+    val jarName = nativesJarName.value
+    val ivys = ivyPaths.value
+    val outDir = nativesDir.value
+    val unzipTo = file(".") / "natives-cache"
+    val lwjglN = pullNativeJar(org.value, nativesName.value, jarName, ivys.ivyHome)
 
-      s.log.info("Unzipping the native jar")
-      IO.unzip(lwjglN, unzipTo)
+    s.log.info("Unzipping the native jar")
+    IO.unzip(lwjglN, unzipTo)
 
-      val allFiles = unzipTo ** "*.*"
+    val allFiles = unzipTo ** "*.*"
 
-      allFiles.get foreach { f =>
-        IO.copyFile(f, outDir / f.name)
-      }
-      // Delete cache
-      s.log.info("Removing cache")
-      IO.delete(unzipTo.asFile)
+    allFiles.get foreach { f =>
+      IO.copyFile(f, outDir / f.name)
     }
+    // Delete cache
+    s.log.info("Removing cache")
+    IO.delete(unzipTo.asFile)
+  }
 
   // Helper methods 
   def defineOs = System.getProperty("os.name").toLowerCase.take(3).toString match {
@@ -153,35 +156,39 @@ object LWJGLPlugin extends AutoPlugin {
     lwjgl.includePlatform := true,
 
     // The group ID changed at version 3
-    lwjgl.org <<= lwjgl.version {
-      v => if (major(v) <= 2) "org.lwjgl.lwjgl" else "org.lwjgl"
+    lwjgl.org := {
+      val v = lwjgl.version.value
+      if (major(v) <= 2) "org.lwjgl.lwjgl" else "org.lwjgl"
     },
 
     lwjgl.utilsName := "lwjgl_util",
 
-    nativesDir <<= target (_ / "lwjgl-natives"),
+    nativesDir := (target.value / "lwjgl-natives"),
 
-    manifestNatives <<= lwjglNativesTask,
-    manifestNatives <<= manifestNatives dependsOn update,
+    manifestNatives := lwjglNativesTask,
+    manifestNatives := manifestNatives dependsOn update,
 
-    libraryDependencies <++=
-      (lwjgl.version, lwjgl.org, lwjgl.utilsName, lwjgl.os, lwjgl.includePlatform) {
-        (v, org, utils, os, isNew) =>
-          val deps = Seq(org % "lwjgl" % v)
+    libraryDependencies ++= {
+      val v = lwjgl.version.value
+      val org = lwjgl.org.value
+      val utils = lwjgl.utilsName.value
+      val os = lwjgl.os.value
+      val isNew = lwjgl.includePlatform.value
+      val deps = Seq(org % "lwjgl" % v)
 
-          // Version 2 includes a util artifact.
-          val utilsDeps = if (major(v) <= 2)
-            Seq(org % utils % v)
-          else
-            Nil
+      // Version 2 includes a util artifact.
+      val utilsDeps = if (major(v) <= 2)
+        Seq(org % utils % v)
+      else
+        Nil
 
-          val nativeDeps = if (isNew)
-            Seq(org % "lwjgl-platform" % v classifier "natives-" + os._1)
-          else
-            Nil
+      val nativeDeps = if (isNew)
+        Seq(org % "lwjgl-platform" % v classifier "natives-" + os._1)
+      else
+        Nil
 
-          deps ++ utilsDeps ++ nativeDeps
-      }
+      deps ++ utilsDeps ++ nativeDeps
+    }
   )
 
   lazy val runSettings: Seq[sbt.Def.Setting[_]] = Seq (
@@ -189,22 +196,20 @@ object LWJGLPlugin extends AutoPlugin {
 
     lwjgl.nativesName := "lwjgl-platform",
 
-    lwjgl.nativesJarName <<= (lwjgl.nativesName, lwjgl.version, lwjgl.os) {
-      _ + "-" + _ + "-natives-" + _._1
-    },
+    lwjgl.nativesJarName :=
+      lwjgl.nativesName.value + "-" + lwjgl.version.value + "-natives-" + lwjgl.os.value._1,
 
     lwjgl.os := defineOs,
-    copyDir <<= (resourceManaged in Compile) (_ / "lwjgl-resources"),
+    copyDir := ((resourceManaged in Compile).value  / "lwjgl-resources"),
 
-    copyNatives <<= lwjglCopyTask,
-    resourceGenerators in Compile <+= copyNatives,
+    copyNatives := lwjglCopyTask.value,
+    resourceGenerators in Compile += copyNatives,
 
-    cleanFiles <+= copyDir,
+    cleanFiles += copyDir.value,
 
     fork := true,
-    javaOptions <+= (copyDir, lwjgl.os).map{ (dir, os) => 
-      "-Dorg.lwjgl.librarypath=%s".format(dir / os._1)
-    }
+    javaOptions +=
+      "-Dorg.lwjgl.librarypath=%s".format(copyDir.value / lwjgl.os.value._1)
   )
 
   lazy val oldLwjglSettings: Seq[Setting[_]] = lwjglSettings ++ Seq (
@@ -212,7 +217,7 @@ object LWJGLPlugin extends AutoPlugin {
 
     lwjgl.nativesName := "lwjgl-native",
 
-    lwjgl.nativesJarName <<= (lwjgl.nativesName, lwjgl.version) (_ + "-" + _),
+    lwjgl.nativesJarName := lwjgl.nativesName + "-" + lwjgl.version,
 
     lwjgl.version := "2.7.1",
 

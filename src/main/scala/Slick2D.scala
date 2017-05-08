@@ -18,7 +18,9 @@ object Slick2D {
       "The phys2d dependency pom is broken. Patch aims to fix it")
   }
 
-  private def slickPatchTask = (streams, ivyPaths) map { (s, ivys) =>
+  private def slickPatchTask = Def.task {
+    val s = streams.value
+    val ivys = ivyPaths.value
     val base = ivys.ivyHome.getOrElse(Path.userHome / ".ivy2")
 
     val path = base / "cache" / "phys2d" / "phys2d" / "ivy-060408.xml"
@@ -38,7 +40,9 @@ object Slick2D {
     }
   }
 
-  private def localJnlpTask = (streams, ivyPaths) map { (s, ivys) =>
+  private def localJnlpTask = Def.task {
+    val s = streams.value
+    val ivys = ivyPaths.value
     val base = ivys.ivyHome.getOrElse(Path.userHome / ".ivy2")
 
     val jnlpBase = base / "cache" / "javax.jnlp" / "jnlp"
@@ -62,20 +66,20 @@ object Slick2D {
   lazy val baseSettings: Seq[Setting[_]] = Seq (
     slick.version := "274",
 
-    slick.patch <<= slickPatchTask,
+    slick.patch := slickPatchTask,
 
-    slick.localJnlp <<= localJnlpTask,
+    slick.localJnlp := localJnlpTask,
 
-    update <<= update dependsOn (slick.patch, slick.localJnlp),
+    update := (update dependsOn (slick.patch, slick.localJnlp)).value,
 
     resolvers ++= Seq (
       "Slick2D Maven Repo" at "http://slick.cokeandcode.com/mavenrepo",
       "b2srepo" at "http://b2s-repo.googlecode.com/svn/trunk/mvn-repo",
       "Freehep" at "http://java.freehep.org/maven2"
     ),
-    libraryDependencies <+= (slick.version) {
-      "slick" % "slick" % _
-    }
+
+    libraryDependencies += "slick" % "slick" % slick.version.value
+
   )
 
   lazy val slickSettings: Seq[Setting[_]] = 
